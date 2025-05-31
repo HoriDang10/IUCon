@@ -90,11 +90,9 @@ def process_chatbot_response(sentence):
             parts = []
             for method_key, val in score_data[major].items():
                 parts.append(f"phương thức {method_key[-1]}: {val} điểm")
-            resp = f"Điểm chuẩn ngành {major} năm {year}: " + "; ".join(parts)
+            return f"Điểm chuẩn ngành {major} năm {year}: " + "; ".join(parts)
         else:
-            resp = f"Xin lỗi, không tìm thấy ngành {major} trong dữ liệu điểm chuẩn."
-        print(f"{bot_name}: {resp}")
-        return
+            return f"Xin lỗi, không tìm thấy ngành {major} trong dữ liệu điểm chuẩn."
 
     # 1) Method-based score query: “theo phương thức X”
     m_method = re.search(
@@ -110,16 +108,13 @@ def process_chatbot_response(sentence):
         key = f"method{method}"
         if major in score_data and key in score_data[major]:
             val = score_data[major][key]
-            print(f"{bot_name}: Điểm chuẩn của ngành {major} theo phương thức {method} là {val} điểm.")
+            return f"Điểm chuẩn của ngành {major} theo phương thức {method} là {val} điểm."
         else:
-            print(f"{bot_name}: Xin lỗi, mình không tìm thấy điểm chuẩn của ngành {major} theo phương thức {method}.")
-        return
-
+            return f"Xin lỗi, mình không tìm thấy điểm chuẩn của ngành {major} theo phương thức {method}."
     # 2) Retrieval (TF-IDF → Fuzzy)
     answer = retrieve_answer(sentence)
     if answer:
-        print(f"{bot_name}: {answer}")
-        return
+        return answer
 
     # 3) Neural-intent fallback (skip greeting)
     tokens = vietnamese_tokenizer(sentence)
@@ -132,20 +127,11 @@ def process_chatbot_response(sentence):
     if prob > 0.75 and tag != "greeting":
         for intent in intents['intents']:
             if intent['tag'] == tag:
-                print(f"{bot_name}: {random.choice(intent['responses'])}")
-                return
+                return random.choice(intent['responses'])
 
     # 4) Final fallback
-    print(f"{bot_name}: Mình chưa hiểu ý của bạn...")
+    return(f"{bot_name}: Mình chưa hiểu ý của bạn...")
 
 
-def main():
-    while True:
-        s = input("Bạn: ").strip()
-        if s == "Tôi không muốn trò chuyện":
-            break
-        process_chatbot_response(s)
-
-if __name__ == '__main__':
-    print("Bắt đầu cuộc trò chuyện... (gõ 'Tôi không muốn trò chuyện' để thoát)")
-    main()
+def get_ai_response(user_input: str) -> str:
+    return process_chatbot_response(user_input)

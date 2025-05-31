@@ -1,54 +1,55 @@
-import { useEffect, useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import './App.css';
-import axios from 'axios';
 
 function App() {
-  const [text, setText] = useState('');
   const [messages, setMessages] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingText, setTypingText] = useState('');
+  const messageEndRef = useRef(null);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const res = await axios.get("http://localhost:5000/api/users");
-        console.log("Users fetched:", res.data.users);
-      } catch (err) {
-        console.error("Failed to fetch users:", err);
-      }
-    };
-  
-    fetchUsers();
-  }, []);
+    messageEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isTyping, typingText]);
+
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const date = new Date();
-    const time = `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+    const input = e.target.elements.msg;
+    const messageText = input.value;
+    input.value = '';
 
-    // Add user's message
-    const userMsg = {
-      sender: 'user',
-      content: text,
-      time: time,
-    };
-    setMessages(prev => [...prev, userMsg]);
-    setText('');
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    setMessages((prev) => [...prev, { text: messageText, sender: 'user', time }]);
+    setIsTyping(true);
+    setTypingText('');
 
     try {
-      const res = await axios.post('http://localhost:5000/predict', {
-        message: text
-      }, {
-        headers: { 'Content-Type': 'application/json' }
+      const response = await fetch('http://localhost:8000/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: messageText }),
       });
 
-      const botMsg = {
-        sender: 'bot',
-        content: res.data.answer,
-        time: time,
-      };
-      setMessages(prev => [...prev, botMsg]);
+      const data = await response.json();
 
+      let currentText = '';
+      const chars = data.answer.split('');
+
+      for (let ch of chars) {
+        currentText += ch;
+        setTypingText(currentText);
+        await sleep(10); // Typing speed per character
+      }
+
+      setMessages((prev) => [...prev, { text: currentText, sender: 'bot', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
     } catch (err) {
-      console.error('Error:', err);
+      console.error(err);
+      setMessages((prev) => [...prev, { text: "Lỗi hệ thống. Vui lòng thử lại sau.", sender: 'bot', time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
+    } finally {
+      setIsTyping(false);
+      setTypingText('');
     }
   };
 
@@ -60,7 +61,7 @@ function App() {
             <div className="card-header msg_head">
               <div className="d-flex bd-highlight">
                 <div className="img_cont">
-                  <img src="https://ibb.co/BYJM89M/logo.png" className="rounded-circle user_img" alt="User avatar" />
+                  <img src="https://i.ibb.co/mCsb0sHn/logo.png" className="rounded-circle user_img" alt="logo" />
                   <span className="online_icon"></span>
                 </div>
                 <div className="user_info">
@@ -69,31 +70,45 @@ function App() {
                 </div>
               </div>
             </div>
-
-            <div className="card-body msg_card_body">
-              {messages.map((msg, i) => (
-                <div key={i} className={`d-flex mb-4 ${msg.sender === 'user' ? 'justify-content-end' : 'justify-content-start'}`}>
+            <div className="card-body msg_card_body" id="messageContainer">
+              {messages.map((msg, index) => (
+                <div key={index} className={`d-flex mb-4 ${msg.sender === 'user' ? 'justify-content-end' : 'justify-content-start'}`}>
                   {msg.sender === 'bot' && (
                     <div className="img_cont_msg">
-                      <img src="https://ibb.co/BYJM89M/logo.png" className="rounded-circle user_img_msg" alt="Bot" />
-                    </div> 
+                      <img src="https://i.ibb.co/mCsb0sHn/logo.png" className="rounded-circle user_img_msg" alt="bot avatar" />
+                    </div>
                   )}
-                  <div className={msg.sender === 'user' ? 'msg_cotainer_send' : 'msg_cotainer'}>
-                    {msg.content}
-                    <span className="msg_time_send">{msg.time}</span>
+                  <div className={msg.sender === 'user' ? 'msg_cotainer_send' : 'msg_cotainer'} style={{ whiteSpace: 'pre-wrap' }}>
+                    <div dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br>') }} />
+                    <span className={msg.sender === 'user' ? 'msg_time_send' : 'msg_time'}>{msg.time}</span>
                   </div>
+                  {msg.sender === 'user' && (
+                    <div className="img_cont_msg">
+                      <img src="https://i.ibb.co/V0112Lck/audience.png" className="rounded-circle user_img_msg" alt="user avatar" />
+                    </div>
+                  )}
                 </div>
               ))}
-            </div>
 
+              {isTyping && (
+                <div className="d-flex mb-4 justify-content-start">
+                  <div className="img_cont_msg">
+                    <img src="https://i.ibb.co/mCsb0sHn/logo.png" className="rounded-circle user_img_msg" alt="typing bot" />
+                  </div>
+                  <div className="msg_cotainer typing" style={{ whiteSpace: 'pre-wrap' }}>{typingText}</div>
+                </div>
+              )}
+
+              <div ref={messageEndRef}></div>
+            </div>
             <div className="card-footer">
               <form className="input-group" onSubmit={handleSubmit}>
                 <input
                   type="text"
+                  name="msg"
                   placeholder="Type your message..."
                   className="form-control type_msg"
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  autoComplete="off"
                   required
                 />
                 <div className="input-group-append">
